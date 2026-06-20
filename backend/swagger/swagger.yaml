@@ -1,0 +1,308 @@
+openapi: 3.0.3
+info:
+  title: AquaGuard API – Smart Water Infrastructure Platform
+  description: REST API specifications for the AquaGuard Smart Water Infrastructure Monitoring & Management Platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+paths:
+  /auth/login:
+    post:
+      summary: User Authentication
+      description: Logs in users and returns a JWT token with their role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  example: admin123
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      username:
+                        type: string
+                      role:
+                        type: string
+                        enum: [Admin, Operations Manager, Field Engineer]
+        '401':
+          description: Invalid credentials
+
+  /dashboard:
+    get:
+      summary: Get Dashboard Metrics
+      description: Returns aggregate numbers and overview telemetry metrics for the system homepage.
+      responses:
+        '200':
+          description: Succesfully retrieved dashboard metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      totalReservoirs:
+                        type: integer
+                      activePumps:
+                        type: integer
+                      activePipelines:
+                        type: integer
+                      activeSmartMeters:
+                        type: integer
+                      totalWaterConsumption:
+                        type: number
+                      activeAlerts:
+                        type: integer
+                      systemHealth:
+                        type: number
+                  recentAlerts:
+                    type: array
+                    items:
+                      type: object
+
+  /reservoirs:
+    get:
+      summary: List Reservoirs
+      description: Retrieve all registered water reservoirs.
+      responses:
+        '200':
+          description: List of reservoirs
+    post:
+      summary: Add Reservoir
+      description: Create a new reservoir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - location
+                - capacity_liters
+              properties:
+                name:
+                  type: string
+                location:
+                  type: string
+                capacity_liters:
+                  type: number
+                current_level_liters:
+                  type: number
+      responses:
+        '201':
+          description: Reservoir created
+
+  /reservoirs/{id}:
+    put:
+      summary: Update Reservoir
+      description: Update details or level of an existing reservoir.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Reservoir updated
+    delete:
+      summary: Delete Reservoir
+      description: Remove a reservoir.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Reservoir deleted
+
+  /pipelines:
+    get:
+      summary: List Pipelines
+      description: Retrieve pipeline network metrics and health statuses.
+      responses:
+        '200':
+          description: List of pipelines
+    post:
+      summary: Add Pipeline
+      description: Register a new pipeline segment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Pipeline registered
+
+  /pipelines/{id}:
+    put:
+      summary: Update Pipeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pipeline updated
+    delete:
+      summary: Delete Pipeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pipeline deleted
+
+  /pumps:
+    get:
+      summary: List Pumps
+      responses:
+        '200':
+          description: List of pump stations
+    post:
+      summary: Add Pump Station
+      responses:
+        '201':
+          description: Pump registered
+
+  /pumps/{id}:
+    put:
+      summary: Update Pump Station
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pump updated
+    delete:
+      summary: Delete Pump Station
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pump deleted
+
+  /smart-meters:
+    get:
+      summary: List Smart Meters and Usage
+      responses:
+        '200':
+          description: List of consumer smart meters
+
+  /sensors:
+    get:
+      summary: Get Sensor Statuses
+      description: Fetch real-time sensor telemetries and health flags.
+      responses:
+        '200':
+          description: List of sensors
+
+  /alerts:
+    get:
+      summary: Get System Alerts
+      description: List active warnings and critical notifications.
+      responses:
+        '200':
+          description: List of alerts
+  /alerts/{id}:
+    put:
+      summary: Resolve Alert
+      description: Marks an alert as resolved.
+      responses:
+        '200':
+          description: Alert status resolved
+
+  /analytics:
+    get:
+      summary: Get Analytics Summary
+      description: Retrieve historical and predictive water consumption trends.
+      responses:
+        '200':
+          description: Analytics trends and charts data
+
+  /system/health:
+    get:
+      summary: Node Server Health & DevOps Observability
+      description: Exposes active system load, memory logs, and database connection state.
+      responses:
+        '200':
+          description: System metrics JSON
+
+  /logs:
+    get:
+      summary: Query Logs
+      description: View system audit trails, sensor telemetry triggers, and web client warnings.
+      responses:
+        '200':
+          description: Application logs list
+
+  /maintenance:
+    get:
+      summary: List Maintenance Requests
+      responses:
+        '200':
+          description: List of scheduled/active maintenance requests
+    post:
+      summary: Create Maintenance Request
+      responses:
+        '201':
+          description: Maintenance request submitted
+  /maintenance/{id}:
+    put:
+      summary: Update Maintenance Request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Maintenance status updated
