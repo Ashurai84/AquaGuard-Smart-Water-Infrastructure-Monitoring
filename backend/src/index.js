@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { query, getMockDb } from './db.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const JWT_SECRET = process.env.JWT_SECRET || 'aquaguard_jwt_secure_key_123';
 
 app.use(cors());
