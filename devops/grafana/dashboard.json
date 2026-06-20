@@ -1,0 +1,80 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "AquaGuard CPU Load Utilization",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "aquaguard_backend_cpu_load",
+          "legendFormat": "CPU Load",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "title": "AquaGuard Memory Utilization",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "aquaguard_backend_memory_usage",
+          "legendFormat": "RAM Usage",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "title": "Water Distribution Consumption Rate (L/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "aquaguard_water_consumption_liters",
+          "legendFormat": "Flow Rate",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["aquaguard", "infrastructure"],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "title": "AquaGuard – Smart Water Observability Dashboard",
+  "uid": "aquaguard-ops",
+  "version": 1
+}

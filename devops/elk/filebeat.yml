@@ -1,0 +1,10 @@
+filebeat.inputs:
+- type: filestream
+  id: aquaguard-application-logs
+  paths:
+    - /var/log/aquaguard/*.log
+  fields:
+    type: "aquaguard-logs"
+
+output.logstash:
+  hosts: ["logstash:5044"]

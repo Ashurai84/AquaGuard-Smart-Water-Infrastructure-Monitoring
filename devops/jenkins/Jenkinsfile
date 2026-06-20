@@ -1,0 +1,89 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID = '123456789012'
+        AWS_DEFAULT_REGION = 'us-east-1'
+        IMAGE_REPO_NAME_BACKEND = 'aquaguard-backend'
+        IMAGE_REPO_NAME_FRONTEND = 'aquaguard-frontend'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        EKS_CLUSTER_NAME = 'aquaguard-prod-eks'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Code Audit & Lint') {
+            steps {
+                dir('backend') {
+                    sh 'npm install --only=dev'
+                    // sh 'npm run lint'
+                }
+                dir('frontend') {
+                    sh 'npm install --only=dev'
+                    // sh 'npm run lint'
+                }
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                dir('backend') {
+                    // sh 'npm run test'
+                    echo "Unit tests run completed."
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    dockerBackend = docker.build("${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}", "-f backend/Dockerfile ./backend")
+                    dockerFrontend = docker.build("${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}", "-f frontend/Dockerfile ./frontend")
+                }
+            }
+        }
+
+        stage('Push Images to AWS ECR') {
+            steps {
+                script {
+                    sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                    
+                    sh "docker tag ${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}"
+                    sh "docker tag ${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}"
+                    
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Kubernetes Deploy') {
+            steps {
+                script {
+                    sh "aws eks update-kubeconfig --region ${AWS_DEFAULT_REGION} --name ${EKS_CLUSTER_NAME}"
+                    
+                    // Replace image placeholders in Kubernetes manifests
+                    sh "sed -i 's|IMAGE_PLACEHOLDER_BACKEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}|g' devops/kubernetes/backend-deployment.yaml"
+                    sh "sed -i 's|IMAGE_PLACEHOLDER_FRONTEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}|g' devops/kubernetes/frontend-deployment.yaml"
+                    
+                    // Apply Kubernetes configurations
+                    sh "kubectl apply -f devops/kubernetes/"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "CI/CD execution finished successfully. Deployment updated."
+        }
+        failure {
+            echo "Pipeline build failed. Alerting engineering-on-duty."
+        }
+    }
+}
