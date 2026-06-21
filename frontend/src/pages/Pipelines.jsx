@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { GitFork, Activity, ShieldAlert, Wrench, Edit2, Trash2, Plus } from 'lucide-react';
+import { GitFork, ShieldAlert, Wrench, Edit2, Trash2, Plus } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 
 const Pipelines = () => {
   const { user } = useAuth();
-  const [pipelines, setPipelines] = useState([
-    { id: 1, name: 'Main Trunk Line A', status: 'Healthy', flow_rate: 154.2, pressure: 4.2, location_start: 'Grand Valley', location_end: 'Pumping Stn 1' },
-    { id: 2, name: 'Sector 4 Distribution Loop', status: 'Leaking', flow_rate: 98.4, pressure: 2.1, location_start: 'Pumping Stn 1', location_end: 'Sector 4 Residential' },
-    { id: 3, name: 'Industrial Link B', status: 'Maintenance', flow_rate: 0.0, pressure: 0.0, location_start: 'Pumping Stn 2', location_end: 'West Heavy Zone' },
-    { id: 4, name: 'Ridge Route Feed', status: 'Healthy', flow_rate: 76.8, pressure: 3.9, location_start: 'East Gate Reservoir', location_end: 'North Station' }
-  ]);
+  const [pipelines, setPipelines] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -25,10 +24,23 @@ const Pipelines = () => {
       const res = await fetch('/api/pipelines');
       if (res.ok) {
         const data = await res.json();
-        setPipelines(data);
+        setPipelines(Array.isArray(data) ? data : []);
+        setError(null);
+      } else {
+        throw new Error('Server API pipelines error');
       }
     } catch (err) {
-      console.warn("Express API pipelines unavailable, using local mock data.");
+      console.warn("Express API pipelines offline. Falling back to local data context.");
+      const fallback = [
+        { id: 1, name: 'Main Trunk Line A', status: 'Healthy', flow_rate: 154.2, pressure: 4.2, location_start: 'Grand Valley', location_end: 'Pumping Stn 1' },
+        { id: 2, name: 'Sector 4 Distribution Loop', status: 'Leaking', flow_rate: 98.4, pressure: 2.1, location_start: 'Pumping Stn 1', location_end: 'Sector 4 Residential' },
+        { id: 3, name: 'Industrial Link B', status: 'Maintenance', flow_rate: 0.0, pressure: 0.0, location_start: 'Pumping Stn 2', location_end: 'West Heavy Zone' },
+        { id: 4, name: 'Ridge Route Feed', status: 'Healthy', flow_rate: 76.8, pressure: 3.9, location_start: 'East Gate Reservoir', location_end: 'North Station' },
+        { id: 5, name: 'South Connector Pipe 5', status: 'Healthy', flow_rate: 45.2, pressure: 3.2, location_start: 'South Aqueduct Tank', location_end: 'Substation 4' }
+      ];
+      setPipelines(fallback);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,26 +49,29 @@ const Pipelines = () => {
   }, []);
 
   const handleSimulateLeak = async (id) => {
+    if (!id) return;
     try {
-      // Direct REST call to trigger a leak warning alert
       const res = await fetch(`/api/pipelines/${id}/simulate-leak`, { method: 'POST' });
       if (res.ok) {
-        alert("Leak simulated successfully! Check Alerts Center and Logs.");
+        alert("Leak simulated successfully! Check Alerts Center.");
         fetchPipelines();
+      } else {
+        throw new Error('Simulation endpoint failed');
       }
     } catch (err) {
-      setPipelines(pipelines.map(p => p.id === id ? { ...p, status: 'Leaking', pressure: 1.8 } : p));
+      setPipelines((pipelines || []).map(p => p.id === id ? { ...p, status: 'Leaking', pressure: 1.8 } : p));
       alert("Local Leak simulated. Leak alert generated in system memory.");
     }
   };
 
   const handleScheduleMaintenance = async (p) => {
+    if (!p) return;
     const payload = {
       equipment_type: 'Pipeline',
       equipment_id: p.id,
-      issue: `Inspect potential pressure drop in ${p.name}`,
+      issue: `Inspect potential pressure drop in ${p.name || 'Segment'}`,
       priority: p.status === 'Leaking' ? 'Critical' : 'Medium',
-      assigned_engineer_id: 3, // Defaults to field engineer
+      assigned_engineer_id: 3,
       status: 'Pending'
     };
 
@@ -68,6 +83,8 @@ const Pipelines = () => {
       });
       if (res.ok) {
         alert("Maintenance requested successfully!");
+      } else {
+        throw new Error('API maintenance save failed');
       }
     } catch (err) {
       alert("Local maintenance task generated inside system logs.");
@@ -86,17 +103,23 @@ const Pipelines = () => {
   };
 
   const openEditModal = (p) => {
+    if (!p) return;
     setEditId(p.id);
-    setName(p.name);
-    setStatus(p.status);
-    setFlow(p.flow_rate);
-    setPressure(p.pressure);
-    setStartLoc(p.location_start);
-    setEndLoc(p.location_end);
+    setName(p.name || '');
+    setStatus(p.status || 'Healthy');
+    setFlow(p.flow_rate || '');
+    setPressure(p.pressure || '');
+    setStartLoc(p.location_start || '');
+    setEndLoc(p.location_end || '');
     setModalOpen(true);
   };
 
   const handleSave = async () => {
+    if (!name || !flow || !pressure || !startLoc || !endLoc) {
+      alert("All fields are required.");
+      return;
+    }
+
     const payload = {
       name,
       status,
@@ -122,31 +145,41 @@ const Pipelines = () => {
 
       if (res.ok) {
         fetchPipelines();
+      } else {
+        throw new Error('API save pipeline error');
       }
     } catch (err) {
       if (editId) {
-        setPipelines(pipelines.map(p => p.id === editId ? { ...p, ...payload } : p));
+        setPipelines((pipelines || []).map(p => p.id === editId ? { ...p, ...payload } : p));
       } else {
-        setPipelines([...pipelines, { id: Date.now(), ...payload }]);
+        setPipelines([...(pipelines || []), { id: Date.now(), ...payload }]);
       }
     }
     setModalOpen(false);
   };
 
   const handleDelete = async (id) => {
+    if (!id) return;
     if (!window.confirm("Are you sure you want to delete this pipeline segment?")) return;
     try {
       const res = await fetch(`/api/pipelines/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchPipelines();
+      } else {
+        throw new Error('API delete pipeline error');
       }
     } catch (err) {
-      setPipelines(pipelines.filter(p => p.id !== id));
+      setPipelines((pipelines || []).filter(p => p.id !== id));
     }
   };
 
+  if (loading) {
+    return <LoadingSpinner text="Connecting to Pipeline flowmeter nodes..." />;
+  }
+
   const isReadOnly = user?.role === 'Field Engineer';
   const isAdmin = user?.role === 'Admin';
+  const pipelineList = pipelines || [];
 
   return (
     <div className="container" id="pipelines-view">
@@ -160,73 +193,82 @@ const Pipelines = () => {
         )}
       </div>
 
-      <div className="glass-panel data-table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Pipeline Segment</th>
-              <th>Status</th>
-              <th>Flow Rate (L/s)</th>
-              <th>Pressure (Bar)</th>
-              <th>Route Info</th>
-              <th>Monitoring Actions</th>
-              {!isReadOnly && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {pipelines.map(p => (
-              <tr key={p.id}>
-                <td style={{ fontWeight: '600' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <GitFork size={16} className="text-secondary" />
-                    <span>{p.name}</span>
-                  </div>
-                </td>
-                <td>
-                  <span className={`badge ${p.status === 'Healthy' ? 'badge-success' : p.status === 'Leaking' ? 'badge-danger' : 'badge-warning'}`}>
-                    {p.status}
-                  </span>
-                </td>
-                <td style={{ fontFamily: 'var(--font-mono)' }}>{p.flow_rate.toFixed(1)}</td>
-                <td style={{ fontFamily: 'var(--font-mono)' }}>{p.pressure.toFixed(1)}</td>
-                <td>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {p.location_start} → {p.location_end}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {p.status !== 'Leaking' && p.status !== 'Maintenance' && (
-                      <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleSimulateLeak(p.id)}>
-                        <ShieldAlert size={12} />
-                        <span>Simulate Leak</span>
-                      </button>
-                    )}
-                    <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleScheduleMaintenance(p)}>
-                      <Wrench size={12} />
-                      <span>Schedule Work</span>
-                    </button>
-                  </div>
-                </td>
-                {!isReadOnly && (
-                  <td>
-                    <div className="table-row-actions">
-                      <button className="action-btn-small" onClick={() => openEditModal(p)} title="Edit Pipeline">
-                        <Edit2 size={14} />
-                      </button>
-                      {isAdmin && (
-                        <button className="action-btn-small danger" onClick={() => handleDelete(p.id)} title="Delete Pipeline">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+      {pipelineList.length > 0 ? (
+        <div className="glass-panel data-table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Pipeline Segment</th>
+                <th>Status</th>
+                <th>Flow Rate (L/s)</th>
+                <th>Pressure (Bar)</th>
+                <th>Route Info</th>
+                <th>Monitoring Actions</th>
+                {!isReadOnly && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {pipelineList.map(p => (
+                <tr key={p?.id || Math.random()}>
+                  <td style={{ fontWeight: '600' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <GitFork size={16} className="text-secondary" />
+                      <span>{p?.name || 'Segment'}</span>
                     </div>
                   </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <td>
+                    <span className={`badge ${p?.status === 'Healthy' ? 'badge-success' : p?.status === 'Leaking' ? 'badge-danger' : 'badge-warning'}`}>
+                      {p?.status || 'Healthy'}
+                    </span>
+                  </td>
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>{(p?.flow_rate || 0).toFixed(1)}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>{(p?.pressure || 0).toFixed(1)}</td>
+                  <td>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      {p?.location_start || 'Start'} → {p?.location_end || 'End'}
+                    </span>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {p?.status !== 'Leaking' && p?.status !== 'Maintenance' && (
+                        <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleSimulateLeak(p?.id)}>
+                          <ShieldAlert size={12} />
+                          <span>Simulate Leak</span>
+                        </button>
+                      )}
+                      <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleScheduleMaintenance(p)}>
+                        <Wrench size={12} />
+                        <span>Schedule Work</span>
+                      </button>
+                    </div>
+                  </td>
+                  {!isReadOnly && (
+                    <td>
+                      <div className="table-row-actions">
+                        <button className="action-btn-small" onClick={() => openEditModal(p)} title="Edit Pipeline">
+                          <Edit2 size={14} />
+                        </button>
+                        {isAdmin && (
+                          <button className="action-btn-small danger" onClick={() => handleDelete(p?.id)} title="Delete Pipeline">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState 
+          title="No Pipelines Configured" 
+          description="There are currently no telemetry registered distribution lines in the database." 
+          actionText={!isReadOnly ? "Add Segment" : ""}
+          onAction={openAddModal}
+        />
+      )}
 
       {modalOpen && (
         <div className="modal-overlay">

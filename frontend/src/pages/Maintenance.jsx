@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Wrench, Plus, CheckCircle, Clock, Shield, AlertTriangle } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 
 const Maintenance = () => {
   const { user } = useAuth();
-  const [requests, setRequests] = useState([
-    { id: 1, equipment_type: 'Pipeline', equipment_id: 2, issue: 'Leak detected in Sector 4 Pipeline A', priority: 'Critical', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'In Progress' },
-    { id: 2, equipment_type: 'Pump', equipment_id: 4, issue: 'High pump temperature recorded: 86°C', priority: 'High', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'Pending' },
-    { id: 3, equipment_type: 'Reservoir', equipment_id: 2, issue: 'Reservoir level below 20% limit', priority: 'Medium', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'Pending' }
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [equipType, setEquipType] = useState('Pipeline');
@@ -22,10 +21,20 @@ const Maintenance = () => {
       const res = await fetch('/api/maintenance');
       if (res.ok) {
         const data = await res.json();
-        setRequests(data);
+        setRequests(Array.isArray(data) ? data : []);
+      } else {
+        throw new Error('Server API maintenance error');
       }
     } catch (err) {
       console.warn("Express API maintenance unavailable, using local mock data.");
+      const fallback = [
+        { id: 1, equipment_type: 'Pipeline', equipment_id: 2, issue: 'Leak detected in Sector 4 Pipeline A', priority: 'Critical', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'In Progress' },
+        { id: 2, equipment_type: 'Pump', equipment_id: 4, issue: 'High pump temperature recorded: 86°C', priority: 'High', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'Pending' },
+        { id: 3, equipment_type: 'Reservoir', equipment_id: 2, issue: 'Reservoir level below 20% limit', priority: 'Medium', assigned_engineer_id: 3, assigned_name: 'Engineer Dave', status: 'Pending' }
+      ];
+      setRequests(fallback);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,6 +43,7 @@ const Maintenance = () => {
   }, []);
 
   const handleUpdateStatus = async (id, currentStatus) => {
+    if (!id) return;
     let nextStatus = 'In Progress';
     if (currentStatus === 'In Progress') nextStatus = 'Resolved';
     if (currentStatus === 'Resolved') return;
@@ -44,13 +54,22 @@ const Maintenance = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
       });
-      if (res.ok) fetchRequests();
+      if (res.ok) {
+        fetchRequests();
+      } else {
+        throw new Error('API update maintenance status error');
+      }
     } catch (err) {
-      setRequests(requests.map(r => r.id === id ? { ...r, status: nextStatus } : r));
+      setRequests((requests || []).map(r => r.id === id ? { ...r, status: nextStatus } : r));
     }
   };
 
   const handleSave = async () => {
+    if (!issue || !equipId) {
+      alert("All fields are required.");
+      return;
+    }
+
     const payload = {
       equipment_type: equipType,
       equipment_id: parseInt(equipId) || 1,
@@ -67,20 +86,29 @@ const Maintenance = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (res.ok) fetchRequests();
+      if (res.ok) {
+        fetchRequests();
+      } else {
+        throw new Error('API save maintenance error');
+      }
     } catch (err) {
-      setRequests([...requests, { id: Date.now(), ...payload }]);
+      setRequests([...(requests || []), { id: Date.now(), ...payload }]);
     }
     setModalOpen(false);
   };
 
+  if (loading) {
+    return <LoadingSpinner text="Querying maintenance schedules..." />;
+  }
+
   const isReadOnly = user?.role === 'Field Engineer';
+  const requestList = requests || [];
 
   return (
     <div className="container" id="maintenance-view">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <p style={{ color: 'var(--text-secondary)' }}>Log and assign utility hardware repair tasks and track active field work.</p>
-        {user?.role !== 'Field Engineer' && (
+        {!isReadOnly && (
           <button className="btn btn-primary" onClick={() => setModalOpen(true)} id="btn-add-maintenance">
             <Plus size={16} />
             <span>Create Request</span>
@@ -88,72 +116,85 @@ const Maintenance = () => {
         )}
       </div>
 
-      <div className="glass-panel data-table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Request ID</th>
-              <th>Asset Info</th>
-              <th>Issue Description</th>
-              <th>Priority</th>
-              <th>Assigned Tech</th>
-              <th>Work Status</th>
-              <th>Workflow Controls</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map(r => (
-              <tr key={r.id}>
-                <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600' }}>#{r.id}</td>
-                <td>
-                  <span className="badge badge-info">{r.equipment_type} (ID: {r.equipment_id})</span>
-                </td>
-                <td style={{ fontSize: '0.85rem' }}>{r.issue}</td>
-                <td>
-                  <span className={`priority-indicator ${r.priority.toLowerCase()}`}>
-                    {r.priority}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
-                    <Shield size={12} className="text-secondary" />
-                    <span>{r.assigned_name || 'Dave (Field Eng)'}</span>
-                  </div>
-                </td>
-                <td>
-                  <span className={`badge ${r.status === 'Resolved' ? 'badge-success' : r.status === 'In Progress' ? 'badge-warning' : 'badge-danger'}`}>
-                    {r.status}
-                  </span>
-                </td>
-                <td>
-                  {r.status !== 'Resolved' ? (
-                    <button 
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', borderColor: r.status === 'In Progress' ? 'var(--accent-green)' : 'var(--accent-orange)' }} 
-                      onClick={() => handleUpdateStatus(r.id, r.status)}
-                      id={`btn-update-status-${r.id}`}
-                    >
-                      {r.status === 'Pending' ? (
-                        <>
-                          <Clock size={12} />
-                          <span>Start Work</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={12} />
-                          <span>Complete Task</span>
-                        </>
-                      )}
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Work Completed</span>
-                  )}
-                </td>
+      {requestList.length > 0 ? (
+        <div className="glass-panel data-table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Request ID</th>
+                <th>Asset Info</th>
+                <th>Issue Description</th>
+                <th>Priority</th>
+                <th>Assigned Tech</th>
+                <th>Work Status</th>
+                <th>Workflow Controls</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {requestList.map(r => {
+                const priorityStr = r?.priority || 'Low';
+                const statusStr = r?.status || 'Pending';
+                return (
+                  <tr key={r?.id || Math.random()}>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600' }}>#{r?.id || '-'}</td>
+                    <td>
+                      <span className="badge badge-info">{r?.equipment_type || 'Asset'} (ID: {r?.equipment_id || '0'})</span>
+                    </td>
+                    <td style={{ fontSize: '0.85rem' }}>{r?.issue || 'No description provided'}</td>
+                    <td>
+                      <span className={`priority-indicator ${priorityStr.toLowerCase()}`}>
+                        {priorityStr}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
+                        <Shield size={12} className="text-secondary" />
+                        <span>{r?.assigned_name || 'Dave (Field Eng)'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${statusStr === 'Resolved' ? 'badge-success' : statusStr === 'In Progress' ? 'badge-warning' : 'badge-danger'}`}>
+                        {statusStr}
+                      </span>
+                    </td>
+                    <td>
+                      {statusStr !== 'Resolved' ? (
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', borderColor: statusStr === 'In Progress' ? 'var(--accent-green)' : 'var(--accent-orange)' }} 
+                          onClick={() => handleUpdateStatus(r?.id, r?.status)}
+                          id={`btn-update-status-${r?.id || Math.random()}`}
+                        >
+                          {statusStr === 'Pending' ? (
+                            <>
+                              <Clock size={12} />
+                              <span>Start Work</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle size={12} />
+                              <span>Complete Task</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Work Completed</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState 
+          title="No Open Requests" 
+          description="There are currently no reported maintenance faults on reservoirs, pumps, or pipes." 
+          actionText={!isReadOnly ? "Create Request" : ""}
+          onAction={() => setModalOpen(true)}
+        />
+      )}
 
       {modalOpen && (
         <div className="modal-overlay">
@@ -206,3 +247,5 @@ const Maintenance = () => {
 };
 
 export default Maintenance;
+
+

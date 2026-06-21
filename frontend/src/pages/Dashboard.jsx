@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Droplet, Activity, AlertTriangle, ShieldCheck, Zap } from 'lucide-react';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import LoadingSpinner from '../components/LoadingSpinner';
+import EmptyState from '../components/EmptyState';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -49,25 +51,45 @@ const Dashboard = () => {
   });
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let active = true;
     const fetchData = async () => {
       try {
         const response = await fetch('/api/dashboard');
         if (response.ok) {
           const resData = await response.json();
-          setData(resData);
+          if (active) {
+            setData(resData);
+            setError(null);
+          }
+        } else {
+          throw new Error('API server returned response error');
         }
       } catch (err) {
-        console.warn("Express API dashboard unavailable, using mock telemetry context.");
+        if (active) {
+          console.warn("Express API dashboard offline. Telemetry running in fallback simulated mode.");
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
+    
     fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchData, 8000);
+    
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
+
+  if (loading) {
+    return <LoadingSpinner text="Polling operations status and loading charts..." />;
+  }
 
   // 1. Water Consumption Chart Configuration (Line)
   const lineChartData = {
@@ -76,7 +98,7 @@ const Dashboard = () => {
       {
         fill: true,
         label: 'Flow Rate (L/s)',
-        data: data.chartData,
+        data: data?.chartData || [0, 0, 0, 0, 0, 0, 0],
         borderColor: '#00F2FE',
         backgroundColor: 'rgba(0, 242, 254, 0.15)',
         tension: 0.3,
@@ -152,6 +174,8 @@ const Dashboard = () => {
     }
   };
 
+  const recentAlertsList = data?.recentAlerts || [];
+
   return (
     <div className="container" id="dashboard-view">
       {/* 5 Core Metrics Cards Row */}
@@ -159,7 +183,7 @@ const Dashboard = () => {
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Total Reservoirs</span>
-            <span className="stat-value cyan">{data.stats.totalReservoirs}</span>
+            <span className="stat-value cyan">{data?.stats?.totalReservoirs ?? 0}</span>
           </div>
           <div className="stat-icon-wrapper cyan">
             <Droplet size={20} />
@@ -169,7 +193,7 @@ const Dashboard = () => {
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Active Pumps</span>
-            <span className="stat-value blue">{data.stats.activePumps}</span>
+            <span className="stat-value blue">{data?.stats?.activePumps ?? 0}</span>
           </div>
           <div className="stat-icon-wrapper blue">
             <Activity size={20} />
@@ -179,7 +203,7 @@ const Dashboard = () => {
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Smart Meters</span>
-            <span className="stat-value orange">{data.stats.activeSmartMeters}</span>
+            <span className="stat-value orange">{data?.stats?.activeSmartMeters ?? 0}</span>
           </div>
           <div className="stat-icon-wrapper orange">
             <Zap size={20} />
@@ -189,7 +213,7 @@ const Dashboard = () => {
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Active Alerts</span>
-            <span className="stat-value red">{data.stats.activeAlerts}</span>
+            <span className="stat-value red">{data?.stats?.activeAlerts ?? 0}</span>
           </div>
           <div className="stat-icon-wrapper red">
             <AlertTriangle size={20} />
@@ -199,7 +223,7 @@ const Dashboard = () => {
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">System Health</span>
-            <span className="stat-value green">{data.stats.systemHealth}%</span>
+            <span className="stat-value green">{data?.stats?.systemHealth ?? 100}%</span>
           </div>
           <div className="stat-icon-wrapper green">
             <ShieldCheck size={20} />
@@ -243,20 +267,24 @@ const Dashboard = () => {
             <h3 className="panel-title">Critical System Incidents</h3>
           </div>
           <div className="panel-body">
-            <div className="alert-feed-list" style={{ maxHeight: '180px' }}>
-              {data.recentAlerts.map(alert => (
-                <div key={alert.id} className={`alert-feed-item ${alert.severity.toLowerCase()}`}>
-                  <AlertTriangle 
-                    size={18} 
-                    style={{ color: alert.severity === 'Critical' ? 'var(--accent-red)' : 'var(--accent-orange)' }} 
-                  />
-                  <div className="alert-content-box">
-                    <span className="alert-msg">{alert.message}</span>
-                    <span className="alert-meta">{alert.source} • {alert.timestamp}</span>
+            {recentAlertsList.length > 0 ? (
+              <div className="alert-feed-list" style={{ maxHeight: '180px' }}>
+                {recentAlertsList.map(alert => (
+                  <div key={alert?.id || Math.random()} className={`alert-feed-item ${(alert?.severity || 'info').toLowerCase()}`}>
+                    <AlertTriangle 
+                      size={18} 
+                      style={{ color: alert?.severity === 'Critical' ? 'var(--accent-red)' : 'var(--accent-orange)' }} 
+                    />
+                    <div className="alert-content-box">
+                      <span className="alert-msg">{alert?.message || 'Warning trigger raised.'}</span>
+                      <span className="alert-meta">{alert?.source || 'Sensor'} • {alert?.timestamp || 'Just now'}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No Active Incidents" description="All municipal water assets are currently reporting healthy operating bounds." />
+            )}
           </div>
         </div>
       </div>

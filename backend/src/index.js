@@ -127,62 +127,102 @@ app.get('/api/dashboard', async (req, res) => {
 
 // 3. Reservoir CRUD APIs
 app.get('/api/reservoirs', async (req, res) => {
-  const result = await query('SELECT * FROM reservoirs ORDER BY id ASC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM reservoirs ORDER BY id ASC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/reservoirs error:', err);
+    res.status(500).json([]);
+  }
 });
 
 app.post('/api/reservoirs', async (req, res) => {
-  const { name, location, capacity_liters, current_level_liters, status } = req.body;
-  const result = await query(
-    'INSERT INTO reservoirs (name, location, capacity_liters, current_level_liters, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-    [name, location, capacity_liters, current_level_liters, status]
-  );
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'info', `Created new reservoir ${name}`]);
-  res.status(201).json(result.rows[0]);
+  try {
+    const { name, location, capacity_liters, current_level_liters, status } = req.body;
+    const result = await query(
+      'INSERT INTO reservoirs (name, location, capacity_liters, current_level_liters, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, location, capacity_liters, current_level_liters, status]
+    );
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'info', `Created new reservoir ${name}`]).catch(() => {});
+    res.status(201).json(result.rows[0] || {});
+  } catch (err) {
+    console.error('POST /api/reservoirs error:', err);
+    res.status(500).json({ error: 'Failed to create reservoir' });
+  }
 });
 
 app.put('/api/reservoirs/:id', async (req, res) => {
-  const { name, location, capacity_liters, current_level_liters, status } = req.body;
-  const result = await query(
-    'UPDATE reservoirs SET name=$1, location=$2, capacity_liters=$3, current_level_liters=$4, status=$5, last_updated=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *',
-    [name, location, capacity_liters, current_level_liters, status, req.params.id]
-  );
-  res.json(result.rows[0]);
+  try {
+    const { name, location, capacity_liters, current_level_liters, status } = req.body;
+    const result = await query(
+      'UPDATE reservoirs SET name=$1, location=$2, capacity_liters=$3, current_level_liters=$4, status=$5, last_updated=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *',
+      [name, location, capacity_liters, current_level_liters, status, req.params.id]
+    );
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('PUT /api/reservoirs error:', err);
+    res.status(500).json({ error: 'Failed to update reservoir' });
+  }
 });
 
 app.delete('/api/reservoirs/:id', async (req, res) => {
-  await query('DELETE FROM reservoirs WHERE id=$1', [req.params.id]);
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'warn', `Deleted reservoir ID: ${req.params.id}`]);
-  res.json({ message: 'Reservoir deleted' });
+  try {
+    await query('DELETE FROM reservoirs WHERE id=$1', [req.params.id]);
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'warn', `Deleted reservoir ID: ${req.params.id}`]).catch(() => {});
+    res.json({ message: 'Reservoir deleted' });
+  } catch (err) {
+    console.error('DELETE /api/reservoirs error:', err);
+    res.status(500).json({ error: 'Failed to delete reservoir' });
+  }
 });
 
 // 4. Pipeline CRUD APIs
 app.get('/api/pipelines', async (req, res) => {
-  const result = await query('SELECT * FROM pipelines ORDER BY id ASC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM pipelines ORDER BY id ASC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/pipelines error:', err);
+    res.status(500).json([]);
+  }
 });
 
 app.post('/api/pipelines', async (req, res) => {
-  const { name, status, flow_rate, pressure, location_start, location_end } = req.body;
-  const result = await query(
-    'INSERT INTO pipelines (name, status, flow_rate, pressure, location_start, location_end) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-    [name, status, flow_rate, pressure, location_start, location_end]
-  );
-  res.status(201).json(result.rows[0]);
+  try {
+    const { name, status, flow_rate, pressure, location_start, location_end } = req.body;
+    const result = await query(
+      'INSERT INTO pipelines (name, status, flow_rate, pressure, location_start, location_end) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, status, flow_rate, pressure, location_start, location_end]
+    );
+    res.status(201).json(result.rows[0] || {});
+  } catch (err) {
+    console.error('POST /api/pipelines error:', err);
+    res.status(500).json({ error: 'Failed to create pipeline' });
+  }
 });
 
 app.put('/api/pipelines/:id', async (req, res) => {
-  const { name, status, flow_rate, pressure, location_start, location_end } = req.body;
-  const result = await query(
-    'UPDATE pipelines SET name=$1, status=$2, flow_rate=$3, pressure=$4, location_start=$5, location_end=$6, last_updated=CURRENT_TIMESTAMP WHERE id=$7 RETURNING *',
-    [name, status, flow_rate, pressure, location_start, location_end, req.params.id]
-  );
-  res.json(result.rows[0]);
+  try {
+    const { name, status, flow_rate, pressure, location_start, location_end } = req.body;
+    const result = await query(
+      'UPDATE pipelines SET name=$1, status=$2, flow_rate=$3, pressure=$4, location_start=$5, location_end=$6, last_updated=CURRENT_TIMESTAMP WHERE id=$7 RETURNING *',
+      [name, status, flow_rate, pressure, location_start, location_end, req.params.id]
+    );
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('PUT /api/pipelines error:', err);
+    res.status(500).json({ error: 'Failed to update pipeline' });
+  }
 });
 
 app.delete('/api/pipelines/:id', async (req, res) => {
-  await query('DELETE FROM pipelines WHERE id=$1', [req.params.id]);
-  res.json({ message: 'Pipeline segment deleted' });
+  try {
+    await query('DELETE FROM pipelines WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Pipeline segment deleted' });
+  } catch (err) {
+    console.error('DELETE /api/pipelines error:', err);
+    res.status(500).json({ error: 'Failed to delete pipeline' });
+  }
 });
 
 app.post('/api/pipelines/:id/simulate-leak', async (req, res) => {
@@ -208,81 +248,118 @@ app.post('/api/pipelines/:id/simulate-leak', async (req, res) => {
 
     res.json({ message: 'Leak simulated and alert dispatched.' });
   } catch (err) {
+    console.error('Simulate leak error:', err);
     res.status(500).json({ error: 'Simulation failed' });
   }
 });
 
 // 5. Pump Station CRUD APIs
 app.get('/api/pumps', async (req, res) => {
-  const result = await query('SELECT * FROM pumps ORDER BY id ASC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM pumps ORDER BY id ASC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/pumps error:', err);
+    res.status(500).json([]);
+  }
 });
 
 app.post('/api/pumps', async (req, res) => {
-  const { name, status, temperature, runtime_hours, location } = req.body;
-  const result = await query(
-    'INSERT INTO pumps (name, status, temperature, runtime_hours, location) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-    [name, status, temperature, runtime_hours, location]
-  );
-  res.status(201).json(result.rows[0]);
+  try {
+    const { name, status, temperature, runtime_hours, location } = req.body;
+    const result = await query(
+      'INSERT INTO pumps (name, status, temperature, runtime_hours, location) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, status, temperature, runtime_hours, location]
+    );
+    res.status(201).json(result.rows[0] || {});
+  } catch (err) {
+    console.error('POST /api/pumps error:', err);
+    res.status(500).json({ error: 'Failed to create pump' });
+  }
 });
 
 app.put('/api/pumps/:id', async (req, res) => {
-  const { status, temperature, runtime_hours } = req.body;
-  
-  // Custom update to handle toggle and maintenance status
-  let result;
-  if (temperature !== undefined && runtime_hours !== undefined) {
-    result = await query(
-      'UPDATE pumps SET status=$1, temperature=$2, runtime_hours=$3, last_updated=CURRENT_TIMESTAMP WHERE id=$4 RETURNING *',
-      [status, temperature, runtime_hours, req.params.id]
-    );
-  } else {
-    result = await query(
-      'UPDATE pumps SET status=$1, temperature=$2, last_updated=CURRENT_TIMESTAMP WHERE id=$3 RETURNING *',
-      [status, temperature || 25.0, req.params.id]
-    );
+  try {
+    const { status, temperature, runtime_hours } = req.body;
+    
+    // Custom update to handle toggle and maintenance status
+    let result;
+    if (temperature !== undefined && runtime_hours !== undefined) {
+      result = await query(
+        'UPDATE pumps SET status=$1, temperature=$2, runtime_hours=$3, last_updated=CURRENT_TIMESTAMP WHERE id=$4 RETURNING *',
+        [status, temperature, runtime_hours, req.params.id]
+      );
+    } else {
+      result = await query(
+        'UPDATE pumps SET status=$1, temperature=$2, last_updated=CURRENT_TIMESTAMP WHERE id=$3 RETURNING *',
+        [status, temperature || 25.0, req.params.id]
+      );
+    }
+    
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
+      'audit', 'info', `Pump ID ${req.params.id} state updated to: ${status}`
+    ]).catch(() => {});
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('PUT /api/pumps error:', err);
+    res.status(500).json({ error: 'Failed to update pump' });
   }
-  
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
-    'audit', 'info', `Pump ID ${req.params.id} state updated to: ${status}`
-  ]);
-  res.json(result.rows[0]);
 });
 
 app.delete('/api/pumps/:id', async (req, res) => {
-  await query('DELETE FROM pumps WHERE id=$1', [req.params.id]);
-  res.json({ message: 'Pump deleted' });
+  try {
+    await query('DELETE FROM pumps WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Pump deleted' });
+  } catch (err) {
+    console.error('DELETE /api/pumps error:', err);
+    res.status(500).json({ error: 'Failed to delete pump' });
+  }
 });
 
 // 6. Sensor REST APIs
 app.get('/api/sensors', async (req, res) => {
-  const result = await query('SELECT * FROM sensors ORDER BY id ASC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM sensors ORDER BY id ASC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/sensors error:', err);
+    res.status(500).json([]);
+  }
 });
 
 // 7. Alert REST APIs
 app.get('/api/alerts', async (req, res) => {
-  const result = await query('SELECT * FROM alerts ORDER BY id DESC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM alerts ORDER BY id DESC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/alerts error:', err);
+    res.status(500).json([]);
+  }
 });
 
 app.put('/api/alerts/:id', async (req, res) => {
-  const { status } = req.body;
-  const result = await query('UPDATE alerts SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
-  
-  const msg = `Alert ID ${req.params.id} marked as: ${status}`;
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'info', msg]);
-  
-  res.json(result.rows[0]);
+  try {
+    const { status } = req.body;
+    const result = await query('UPDATE alerts SET status = $1 WHERE id = $2 RETURNING *', [status, req.params.id]);
+    
+    const msg = `Alert ID ${req.params.id} marked as: ${status}`;
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', ['audit', 'info', msg]).catch(() => {});
+    
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('PUT /api/alerts error:', err);
+    res.status(500).json({ error: 'Failed to update alert' });
+  }
 });
 
 // 8. Analytics REST APIs
 app.get('/api/analytics', async (req, res) => {
   try {
     const pipelines = await query('SELECT * FROM pipelines');
-    const flowSum = pipelines.rows.reduce((acc, p) => acc + p.flow_rate, 0);
-    const avgFlow = parseFloat((flowSum / (pipelines.rows.length || 1)).toFixed(1));
+    const pipelineList = pipelines.rows || [];
+    const flowSum = pipelineList.reduce((acc, p) => acc + (p.flow_rate || 0), 0);
+    const avgFlow = parseFloat((flowSum / (pipelineList.length || 1)).toFixed(1));
 
     // Calculate simulated metrics
     const efficiencyPct = 94.6;
@@ -302,69 +379,95 @@ app.get('/api/analytics', async (req, res) => {
       efficiencyHistory
     });
   } catch (err) {
+    console.error('GET /api/analytics error:', err);
     res.status(500).json({ error: 'Analytics failure' });
   }
 });
 
 // 9. System/Health REST API
 app.get('/api/system/health', async (req, res) => {
-  // Read system variables or return structured diagnostic load info
-  const cpu = 15 + Math.random() * 20;
-  const memory = 52 + Math.random() * 10;
-  const disk = 42.4;
-  const rx = 1.0 + Math.random() * 0.5;
-  const tx = 0.5 + Math.random() * 0.4;
+  try {
+    // Read system variables or return structured diagnostic load info
+    const cpu = 15 + Math.random() * 20;
+    const memory = 52 + Math.random() * 10;
+    const disk = 42.4;
+    const rx = 1.0 + Math.random() * 0.5;
+    const tx = 0.5 + Math.random() * 0.4;
 
-  res.json({
-    cpu,
-    memory,
-    disk,
-    networkRx: rx,
-    networkTx: tx,
-    apiHealth: 'Healthy',
-    dbHealth: 'Healthy',
-    services: [
-      { name: 'Authentication API Service', status: 'Online' },
-      { name: 'Telemetry Processing Queue', status: 'Online' },
-      { name: 'PostgreSQL Connection Pool', status: 'Online' },
-      { name: 'Background Alarm Dispatcher', status: 'Online' }
-    ]
-  });
+    res.json({
+      cpu,
+      memory,
+      disk,
+      networkRx: rx,
+      networkTx: tx,
+      apiHealth: 'Healthy',
+      dbHealth: 'Healthy',
+      services: [
+        { name: 'Authentication API Service', status: 'Online' },
+        { name: 'Telemetry Processing Queue', status: 'Online' },
+        { name: 'PostgreSQL Connection Pool', status: 'Online' },
+        { name: 'Background Alarm Dispatcher', status: 'Online' }
+      ]
+    });
+  } catch (err) {
+    console.error('GET /api/system/health error:', err);
+    res.status(500).json({ error: 'Failed to read health check' });
+  }
 });
 
 // 10. Logs & Audit REST API
 app.get('/api/logs', async (req, res) => {
-  const result = await query('SELECT * FROM logs ORDER BY id DESC LIMIT 50');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM logs ORDER BY id DESC LIMIT 50');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/logs error:', err);
+    res.status(500).json([]);
+  }
 });
 
 // 11. Maintenance REST APIs
 app.get('/api/maintenance', async (req, res) => {
-  const result = await query('SELECT * FROM maintenance_requests ORDER BY id DESC');
-  res.json(result.rows);
+  try {
+    const result = await query('SELECT * FROM maintenance_requests ORDER BY id DESC');
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('GET /api/maintenance error:', err);
+    res.status(500).json([]);
+  }
 });
 
 app.post('/api/maintenance', async (req, res) => {
-  const { equipment_type, equipment_id, issue, priority, assigned_engineer_id, status } = req.body;
-  const result = await query(
-    'INSERT INTO maintenance_requests (equipment_type, equipment_id, issue, priority, assigned_engineer_id, assigned_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-    [equipment_type, equipment_id, issue, priority, assigned_engineer_id, 'Engineer Dave', status || 'Pending']
-  );
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
-    'audit', 'info', `Maintenance requested for ${equipment_type} ID ${equipment_id}`
-  ]);
-  res.status(201).json(result.rows[0]);
+  try {
+    const { equipment_type, equipment_id, issue, priority, assigned_engineer_id, status } = req.body;
+    const result = await query(
+      'INSERT INTO maintenance_requests (equipment_type, equipment_id, issue, priority, assigned_engineer_id, assigned_name, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [equipment_type, equipment_id, issue, priority, assigned_engineer_id, 'Engineer Dave', status || 'Pending']
+    );
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
+      'audit', 'info', `Maintenance requested for ${equipment_type} ID ${equipment_id}`
+    ]).catch(() => {});
+    res.status(201).json(result.rows[0] || {});
+  } catch (err) {
+    console.error('POST /api/maintenance error:', err);
+    res.status(500).json({ error: 'Failed to create maintenance request' });
+  }
 });
 
 app.put('/api/maintenance/:id', async (req, res) => {
-  const { status } = req.body;
-  const result = await query('UPDATE maintenance_requests SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
-  
-  // Audit log
-  await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
-    'audit', 'info', `Maintenance request #${req.params.id} updated to: ${status}`
-  ]);
-  res.json(result.rows[0]);
+  try {
+    const { status } = req.body;
+    const result = await query('UPDATE maintenance_requests SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
+    
+    // Audit log
+    await query('INSERT INTO logs (type, level, message) VALUES ($1, $2, $3)', [
+      'audit', 'info', `Maintenance request #${req.params.id} updated to: ${status}`
+    ]).catch(() => {});
+    res.json(result.rows[0] || {});
+  } catch (err) {
+    console.error('PUT /api/maintenance error:', err);
+    res.status(500).json({ error: 'Failed to update maintenance request' });
+  }
 });
 
 // ==========================================

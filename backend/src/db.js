@@ -161,7 +161,8 @@ function handleMockQuery(sql, params) {
   
   // Handle User Auth
   if (queryLower.includes('from users')) {
-    const user = mockDb.users.find(u => u.username === params[0]);
+    const usernameParam = params[0] ? String(params[0]).toLowerCase() : '';
+    const user = mockDb.users.find(u => String(u.username).toLowerCase() === usernameParam);
     return { rows: user ? [user] : [] };
   }
 
@@ -170,21 +171,48 @@ function handleMockQuery(sql, params) {
     return { rows: mockDb.reservoirs };
   }
   if (queryLower.includes('insert into reservoirs')) {
-    const nextId = mockDb.reservoirs.length + 1;
-    const newRes = { id: nextId, name: params[0], location: params[1], capacity_liters: params[2], current_level_liters: params[3], status: params[4] };
+    const nextId = mockDb.reservoirs.length > 0 ? Math.max(...mockDb.reservoirs.map(r => r.id)) + 1 : 1;
+    const newRes = { 
+      id: nextId, 
+      name: params[0], 
+      location: params[1], 
+      capacity_liters: parseFloat(params[2]) || 0, 
+      current_level_liters: parseFloat(params[3]) || 0, 
+      status: params[4] || 'Normal'
+    };
     mockDb.reservoirs.push(newRes);
     return { rows: [newRes] };
   }
   if (queryLower.includes('update reservoirs')) {
-    const id = params[4];
-    const idx = mockDb.reservoirs.findIndex(r => r.id === id);
-    if (idx !== -1) {
-      mockDb.reservoirs[idx] = { ...mockDb.reservoirs[idx], name: params[0], location: params[1], capacity_liters: params[2], current_level_liters: params[3], status: params[4] };
-      return { rows: [mockDb.reservoirs[idx]] };
+    // Simulator query: UPDATE reservoirs SET current_level_liters = $1 WHERE id = $2
+    if (queryLower.includes('set current_level_liters =')) {
+      const level = parseFloat(params[0]);
+      const id = parseInt(params[1]);
+      const idx = mockDb.reservoirs.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        mockDb.reservoirs[idx].current_level_liters = level;
+        return { rows: [mockDb.reservoirs[idx]] };
+      }
+    } else {
+      // PUT API: UPDATE reservoirs SET name=$1, location=$2, capacity_liters=$3, current_level_liters=$4, status=$5, last_updated=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *
+      const id = parseInt(params[5]);
+      const idx = mockDb.reservoirs.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        mockDb.reservoirs[idx] = { 
+          ...mockDb.reservoirs[idx], 
+          name: params[0], 
+          location: params[1], 
+          capacity_liters: parseFloat(params[2]) || 0, 
+          current_level_liters: parseFloat(params[3]) || 0, 
+          status: params[4] 
+        };
+        return { rows: [mockDb.reservoirs[idx]] };
+      }
     }
+    return { rows: [] };
   }
   if (queryLower.includes('delete from reservoirs')) {
-    const id = params[0];
+    const id = parseInt(params[0]);
     mockDb.reservoirs = mockDb.reservoirs.filter(r => r.id !== id);
     return { rowCount: 1 };
   }
@@ -194,29 +222,61 @@ function handleMockQuery(sql, params) {
     return { rows: mockDb.pipelines };
   }
   if (queryLower.includes('insert into pipelines')) {
-    const newPipe = { id: mockDb.pipelines.length + 1, name: params[0], status: params[1], flow_rate: params[2], pressure: params[3], location_start: params[4], location_end: params[5] };
+    const nextId = mockDb.pipelines.length > 0 ? Math.max(...mockDb.pipelines.map(p => p.id)) + 1 : 1;
+    const newPipe = { 
+      id: nextId, 
+      name: params[0], 
+      status: params[1], 
+      flow_rate: parseFloat(params[2]) || 0, 
+      pressure: parseFloat(params[3]) || 0, 
+      location_start: params[4], 
+      location_end: params[5] 
+    };
     mockDb.pipelines.push(newPipe);
     return { rows: [newPipe] };
   }
   if (queryLower.includes('update pipelines')) {
-    // Check if updating simulation or standard edit
-    if (params.length === 2) {
-      const id = params[1];
+    // Simulator flow rate update: UPDATE pipelines SET flow_rate = $1 WHERE id = $2
+    if (queryLower.includes('set flow_rate =')) {
+      const flowRate = parseFloat(params[0]);
+      const id = parseInt(params[1]);
       const idx = mockDb.pipelines.findIndex(p => p.id === id);
       if (idx !== -1) {
-        mockDb.pipelines[idx].status = params[0];
+        mockDb.pipelines[idx].flow_rate = flowRate;
         return { rows: [mockDb.pipelines[idx]] };
       }
     }
-    const id = params[6];
-    const idx = mockDb.pipelines.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      mockDb.pipelines[idx] = { ...mockDb.pipelines[idx], name: params[0], status: params[1], flow_rate: params[2], pressure: params[3], location_start: params[4], location_end: params[5] };
-      return { rows: [mockDb.pipelines[idx]] };
+    // Leak simulation: UPDATE pipelines SET status = 'Leaking', pressure = 1.8 WHERE id = $1
+    else if (queryLower.includes("set status = 'leaking'")) {
+      const id = parseInt(params[0]);
+      const idx = mockDb.pipelines.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        mockDb.pipelines[idx].status = 'Leaking';
+        mockDb.pipelines[idx].pressure = 1.8;
+        return { rows: [mockDb.pipelines[idx]] };
+      }
     }
+    // PUT API update: UPDATE pipelines SET name=$1, status=$2, flow_rate=$3, pressure=$4, location_start=$5, location_end=$6, last_updated=CURRENT_TIMESTAMP WHERE id=$7 RETURNING *
+    else {
+      const id = parseInt(params[6]);
+      const idx = mockDb.pipelines.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        mockDb.pipelines[idx] = { 
+          ...mockDb.pipelines[idx], 
+          name: params[0], 
+          status: params[1], 
+          flow_rate: parseFloat(params[2]) || 0, 
+          pressure: parseFloat(params[3]) || 0, 
+          location_start: params[4], 
+          location_end: params[5] 
+        };
+        return { rows: [mockDb.pipelines[idx]] };
+      }
+    }
+    return { rows: [] };
   }
   if (queryLower.includes('delete from pipelines')) {
-    const id = params[0];
+    const id = parseInt(params[0]);
     mockDb.pipelines = mockDb.pipelines.filter(p => p.id !== id);
     return { rowCount: 1 };
   }
@@ -226,20 +286,62 @@ function handleMockQuery(sql, params) {
     return { rows: mockDb.pumps };
   }
   if (queryLower.includes('insert into pumps')) {
-    const newPump = { id: mockDb.pumps.length + 1, name: params[0], status: params[1], temperature: params[2], runtime_hours: params[3], location: params[4] };
+    const nextId = mockDb.pumps.length > 0 ? Math.max(...mockDb.pumps.map(p => p.id)) + 1 : 1;
+    const newPump = { 
+      id: nextId, 
+      name: params[0], 
+      status: params[1], 
+      temperature: parseFloat(params[2]) || 0, 
+      runtime_hours: parseFloat(params[3]) || 0, 
+      location: params[4] 
+    };
     mockDb.pumps.push(newPump);
     return { rows: [newPump] };
   }
   if (queryLower.includes('update pumps')) {
-    const id = params[4];
-    const idx = mockDb.pumps.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      mockDb.pumps[idx] = { ...mockDb.pumps[idx], name: params[0], status: params[1], temperature: params[2], runtime_hours: params[3] };
-      return { rows: [mockDb.pumps[idx]] };
+    // Simulator: UPDATE pumps SET runtime_hours = $1, temperature = $2 WHERE id = $3
+    if (queryLower.includes('set runtime_hours =') && queryLower.includes('temperature =')) {
+      const runtime = parseFloat(params[0]) || 0;
+      const temperature = parseFloat(params[1]) || 0;
+      const id = parseInt(params[2]);
+      const idx = mockDb.pumps.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        mockDb.pumps[idx].runtime_hours = runtime;
+        mockDb.pumps[idx].temperature = temperature;
+        return { rows: [mockDb.pumps[idx]] };
+      }
     }
+    // PUT API A: UPDATE pumps SET status=$1, temperature=$2, runtime_hours=$3, last_updated=CURRENT_TIMESTAMP WHERE id=$4 RETURNING *
+    else if (params.length === 4) {
+      const id = parseInt(params[3]);
+      const idx = mockDb.pumps.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        mockDb.pumps[idx] = {
+          ...mockDb.pumps[idx],
+          status: params[0],
+          temperature: parseFloat(params[1]) || 0,
+          runtime_hours: parseFloat(params[2]) || 0
+        };
+        return { rows: [mockDb.pumps[idx]] };
+      }
+    }
+    // PUT API B (Toggle): UPDATE pumps SET status=$1, temperature=$2, last_updated=CURRENT_TIMESTAMP WHERE id=$3 RETURNING *
+    else if (params.length === 3) {
+      const id = parseInt(params[2]);
+      const idx = mockDb.pumps.findIndex(p => p.id === id);
+      if (idx !== -1) {
+        mockDb.pumps[idx] = {
+          ...mockDb.pumps[idx],
+          status: params[0],
+          temperature: parseFloat(params[1]) || 20.0
+        };
+        return { rows: [mockDb.pumps[idx]] };
+      }
+    }
+    return { rows: [] };
   }
   if (queryLower.includes('delete from pumps')) {
-    const id = params[0];
+    const id = parseInt(params[0]);
     mockDb.pumps = mockDb.pumps.filter(p => p.id !== id);
     return { rowCount: 1 };
   }
@@ -259,26 +361,43 @@ function handleMockQuery(sql, params) {
     return { rows: mockDb.alerts };
   }
   if (queryLower.includes('insert into alerts')) {
-    const nextId = mockDb.alerts.length + 1;
-    const newAlert = { id: nextId, severity: params[0], message: params[1], source: params[2], status: 'Active', timestamp: new Date().toISOString() };
+    const nextId = mockDb.alerts.length > 0 ? Math.max(...mockDb.alerts.map(a => a.id)) + 1 : 1;
+    const newAlert = { 
+      id: nextId, 
+      severity: params[0], 
+      message: params[1], 
+      source: params[2], 
+      status: 'Active', 
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19) 
+    };
     mockDb.alerts.push(newAlert);
     return { rows: [newAlert] };
   }
   if (queryLower.includes('update alerts')) {
-    const id = params[1];
+    const status = params[0];
+    const id = parseInt(params[1]);
     const idx = mockDb.alerts.findIndex(a => a.id === id);
     if (idx !== -1) {
-      mockDb.alerts[idx].status = params[0];
+      mockDb.alerts[idx].status = status;
       return { rows: [mockDb.alerts[idx]] };
     }
+    return { rows: [] };
   }
 
   // Handle Logs
   if (queryLower.includes('from logs')) {
-    return { rows: mockDb.logs };
+    const sortedLogs = [...mockDb.logs].sort((a, b) => b.id - a.id).slice(0, 50);
+    return { rows: sortedLogs };
   }
   if (queryLower.includes('insert into logs')) {
-    const newLog = { id: mockDb.logs.length + 1, type: params[0], level: params[1], message: params[2], timestamp: new Date().toISOString() };
+    const nextId = mockDb.logs.length > 0 ? Math.max(...mockDb.logs.map(l => l.id)) + 1 : 1;
+    const newLog = { 
+      id: nextId, 
+      type: params[0], 
+      level: params[1], 
+      message: params[2], 
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
+    };
     mockDb.logs.push(newLog);
     return { rows: [newLog] };
   }
@@ -288,19 +407,32 @@ function handleMockQuery(sql, params) {
     return { rows: mockDb.maintenance_requests };
   }
   if (queryLower.includes('insert into maintenance_requests')) {
-    const newReq = { id: mockDb.maintenance_requests.length + 1, equipment_type: params[0], equipment_id: params[1], issue: params[2], priority: params[3], assigned_engineer_id: params[4], assigned_name: 'Engineer Dave', status: params[5] };
+    const nextId = mockDb.maintenance_requests.length > 0 ? Math.max(...mockDb.maintenance_requests.map(m => m.id)) + 1 : 1;
+    const newReq = { 
+      id: nextId, 
+      equipment_type: params[0], 
+      equipment_id: parseInt(params[1]) || 1, 
+      issue: params[2], 
+      priority: params[3], 
+      assigned_engineer_id: parseInt(params[4]) || 3, 
+      assigned_name: 'Engineer Dave', 
+      status: params[5] || 'Pending' 
+    };
     mockDb.maintenance_requests.push(newReq);
     return { rows: [newReq] };
   }
   if (queryLower.includes('update maintenance_requests')) {
-    const id = params[1];
+    const status = params[0];
+    const id = parseInt(params[1]);
     const idx = mockDb.maintenance_requests.findIndex(m => m.id === id);
     if (idx !== -1) {
-      mockDb.maintenance_requests[idx].status = params[0];
+      mockDb.maintenance_requests[idx].status = status;
       return { rows: [mockDb.maintenance_requests[idx]] };
     }
+    return { rows: [] };
   }
 
   // Fallback
   return { rows: [], rowCount: 0 };
 }
+

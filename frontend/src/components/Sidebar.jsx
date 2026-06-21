@@ -63,10 +63,10 @@ const Sidebar = ({ currentPage, setCurrentPage }) => {
 
       <div className="sidebar-footer">
         <div className="user-profile-summary">
-          <div className="avatar-placeholder">{user?.username[0].toUpperCase()}</div>
+          <div className="avatar-placeholder">{(user?.username || 'U')[0].toUpperCase()}</div>
           <div className="user-details">
-            <p className="user-name">{user?.username}</p>
-            <p className="user-role">{user?.role}</p>
+            <p className="user-name">{user?.username || 'Guest'}</p>
+            <p className="user-role">{user?.role || 'Operator'}</p>
           </div>
         </div>
         <button className="logout-btn" onClick={logout} id="btn-logout">

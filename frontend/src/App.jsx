@@ -96,7 +96,9 @@ const DashboardLayout = () => {
       <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <div className="main-content">
         <Header title={getPageTitle()} alertCount={alertCount} setCurrentPage={setCurrentPage} />
-        {renderPage()}
+        <ErrorBoundary key={currentPage}>
+          {renderPage()}
+        </ErrorBoundary>
       </div>
     </div>
   );
