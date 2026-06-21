@@ -56,6 +56,24 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbTest = await query('SELECT NOW()');
+    res.json({
+      status: 'Healthy',
+      database: dbTest.rows.length > 0 ? 'Connected' : 'Disconnected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.json({
+      status: 'Healthy',
+      database: 'Disconnected',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // 2. Dashboard REST API
 app.get('/api/dashboard', async (req, res) => {
   try {

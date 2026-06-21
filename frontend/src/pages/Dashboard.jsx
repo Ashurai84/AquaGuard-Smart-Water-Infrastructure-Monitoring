@@ -1,16 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { Droplet, GitFork, Activity, AlertTriangle, Radio, ShieldCheck, Zap } from 'lucide-react';
+import { Droplet, Activity, AlertTriangle, ShieldCheck, Zap } from 'lucide-react';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { 
+  Chart as ChartJS, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement, 
+  BarElement, 
+  ArcElement, 
+  Title, 
+  Tooltip, 
+  Legend, 
+  Filler 
+} from 'chart.js';
+
+// Register ChartJS modules
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 const Dashboard = () => {
   const [data, setData] = useState({
     stats: {
-      totalReservoirs: 8,
-      activePumps: 24,
-      activePipelines: 112,
-      activeSmartMeters: 14502,
-      totalWaterConsumption: 4850.2,
-      activeAlerts: 3,
-      systemHealth: 98.4
+      totalReservoirs: 5,
+      activePumps: 6,
+      activePipelines: 8,
+      activeSmartMeters: 50,
+      totalWaterConsumption: 520.4,
+      activeAlerts: 7,
+      systemHealth: 88.5
     },
     recentAlerts: [
       { id: 1, severity: 'Critical', message: 'Leak detected in Sector 4 Pipeline A', source: 'Pipeline Sensor 14', timestamp: 'Just now' },
@@ -41,26 +69,100 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Compute SVG line path points based on values
-  const points = data.chartData
-    .map((val, index) => {
-      const x = 50 + index * 100;
-      const y = 200 - (val / 700) * 150;
-      return `${x},${y}`;
-    })
-    .join(' ');
+  // 1. Water Consumption Chart Configuration (Line)
+  const lineChartData = {
+    labels: ['18:00', '18:10', '18:20', '18:30', '18:40', '18:50', '18:60'],
+    datasets: [
+      {
+        fill: true,
+        label: 'Flow Rate (L/s)',
+        data: data.chartData,
+        borderColor: '#00F2FE',
+        backgroundColor: 'rgba(0, 242, 254, 0.15)',
+        tension: 0.3,
+        borderWidth: 2,
+        pointBackgroundColor: '#00F2FE',
+        pointHoverRadius: 6
+      }
+    ]
+  };
+
+  const lineChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#94a3b8' } },
+      y: { grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#94a3b8' } }
+    }
+  };
+
+  // 2. Reservoir Capacity Chart Configuration (Bar)
+  const barChartData = {
+    labels: ['Reservoir 1', 'Reservoir 2', 'Reservoir 3', 'Reservoir 4', 'Reservoir 5'],
+    datasets: [
+      {
+        label: 'Current Level (M Liters)',
+        data: [42.0, 15.0, 24.5, 31.0, 11.2],
+        backgroundColor: '#009cfd',
+        borderRadius: 4
+      },
+      {
+        label: 'Total Capacity (M Liters)',
+        data: [50.0, 30.0, 25.0, 40.0, 15.0],
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 4
+      }
+    ]
+  };
+
+  const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#f1f5f9' } }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#94a3b8' } },
+      y: { grid: { color: 'rgba(255, 255, 255, 0.03)' }, ticks: { color: '#94a3b8' } }
+    }
+  };
+
+  // 3. Alert Analytics Configuration (Doughnut)
+  const doughnutChartData = {
+    labels: ['Critical Alerts', 'Warning Alerts', 'Info Alerts'],
+    datasets: [
+      {
+        data: [3, 4, 3],
+        backgroundColor: ['#ef4444', '#f59e0b', '#00f2fe'],
+        borderWidth: 2,
+        borderColor: '#0c1630'
+      }
+    ]
+  };
+
+  const doughnutChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { color: '#f1f5f9' } }
+    }
+  };
 
   return (
     <div className="container" id="dashboard-view">
-      {/* Metric Cards Row */}
-      <div className="dashboard-metrics-grid">
+      {/* 5 Core Metrics Cards Row */}
+      <div className="dashboard-metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Total Reservoirs</span>
             <span className="stat-value cyan">{data.stats.totalReservoirs}</span>
           </div>
           <div className="stat-icon-wrapper cyan">
-            <Droplet size={24} />
+            <Droplet size={20} />
           </div>
         </div>
 
@@ -70,39 +172,17 @@ const Dashboard = () => {
             <span className="stat-value blue">{data.stats.activePumps}</span>
           </div>
           <div className="stat-icon-wrapper blue">
-            <Activity size={24} />
-          </div>
-        </div>
-
-        <div className="glass-panel stat-card">
-          <div className="stat-info">
-            <span className="stat-label">Active Pipelines</span>
-            <span className="stat-value green">{data.stats.activePipelines}</span>
-          </div>
-          <div className="stat-icon-wrapper green">
-            <GitFork size={24} />
+            <Activity size={20} />
           </div>
         </div>
 
         <div className="glass-panel stat-card">
           <div className="stat-info">
             <span className="stat-label">Smart Meters</span>
-            <span className="stat-value orange">{data.stats.activeSmartMeters.toLocaleString()}</span>
+            <span className="stat-value orange">{data.stats.activeSmartMeters}</span>
           </div>
           <div className="stat-icon-wrapper orange">
-            <Zap size={24} />
-          </div>
-        </div>
-      </div>
-
-      <div className="dashboard-metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-        <div className="glass-panel stat-card">
-          <div className="stat-info">
-            <span className="stat-label">Water Consumption (L/s)</span>
-            <span className="stat-value cyan">{data.stats.totalWaterConsumption}</span>
-          </div>
-          <div className="stat-icon-wrapper cyan">
-            <Droplet size={24} />
+            <Zap size={20} />
           </div>
         </div>
 
@@ -112,7 +192,7 @@ const Dashboard = () => {
             <span className="stat-value red">{data.stats.activeAlerts}</span>
           </div>
           <div className="stat-icon-wrapper red">
-            <AlertTriangle size={24} />
+            <AlertTriangle size={20} />
           </div>
         </div>
 
@@ -122,90 +202,52 @@ const Dashboard = () => {
             <span className="stat-value green">{data.stats.systemHealth}%</span>
           </div>
           <div className="stat-icon-wrapper green">
-            <ShieldCheck size={24} />
+            <ShieldCheck size={20} />
           </div>
         </div>
       </div>
 
-      {/* Chart and Alerts Row */}
-      <div className="dashboard-charts-section">
-        <div className="glass-panel">
-          <div className="panel-header">
-            <h3 className="panel-title">Real-time Water Flow Telemetry (L/s)</h3>
-          </div>
-          <div className="panel-body">
-            <div className="chart-container-svg">
-              <svg className="chart-svg-graphic" viewBox="0 0 700 220">
-                <defs>
-                  <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent-cyan)" />
-                    <stop offset="100%" stopColor="rgba(0, 242, 254, 0)" />
-                  </linearGradient>
-                </defs>
-                {/* Grid Lines */}
-                <line x1="50" y1="50" x2="650" y2="50" className="chart-grid-line" />
-                <line x1="50" y1="100" x2="650" y2="100" className="chart-grid-line" />
-                <line x1="50" y1="150" x2="650" y2="150" className="chart-grid-line" />
-                <line x1="50" y1="200" x2="650" y2="200" className="chart-grid-line" />
-
-                {/* Y-Axis labels */}
-                <text x="20" y="55" className="chart-axis-label">600</text>
-                <text x="20" y="105" className="chart-axis-label">400</text>
-                <text x="20" y="155" className="chart-axis-label">200</text>
-                <text x="20" y="205" className="chart-axis-label">0</text>
-
-                {/* X-Axis labels */}
-                {data.chartData.map((_, i) => (
-                  <text key={i} x={50 + i * 100} y="218" className="chart-axis-label" textAnchor="middle">
-                    {`18:${(i * 10).toString().padStart(2, '0')}`}
-                  </text>
-                ))}
-
-                {/* Area under the path */}
-                <path
-                  d={`M 50 200 L ${points} L 650 200 Z`}
-                  className="chart-data-area"
-                />
-
-                {/* Line path */}
-                <path
-                  d={`M ${points}`}
-                  className="chart-data-line"
-                />
-
-                {/* Data point glowing dots */}
-                {data.chartData.map((val, index) => {
-                  const x = 50 + index * 100;
-                  const y = 200 - (val / 700) * 150;
-                  return (
-                    <circle
-                      key={index}
-                      cx={x}
-                      cy={y}
-                      r="4"
-                      fill="var(--accent-cyan)"
-                      stroke="var(--bg-secondary)"
-                      strokeWidth="2"
-                      style={{ filter: 'drop-shadow(0 0 4px var(--accent-cyan))' }}
-                    />
-                  );
-                })}
-              </svg>
-            </div>
+      {/* Grid containing the 3 Chart.js graphs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+        
+        {/* Chart 1: Water Consumption */}
+        <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          <h3 className="panel-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>Water Consumption Trends</h3>
+          <div style={{ height: '220px' }}>
+            <Line data={lineChartData} options={lineChartOptions} />
           </div>
         </div>
 
+        {/* Chart 2: Reservoir Capacities */}
+        <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          <h3 className="panel-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>Reservoir Capacity Levels</h3>
+          <div style={{ height: '220px' }}>
+            <Bar data={barChartData} options={barChartOptions} />
+          </div>
+        </div>
+
+        {/* Chart 3: Alert Analytics */}
+        <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          <h3 className="panel-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>Alert Analytics Distribution</h3>
+          <div style={{ height: '220px' }}>
+            <Doughnut data={doughnutChartData} options={doughnutChartOptions} />
+          </div>
+        </div>
+
+      </div>
+
+      {/* Alerts and Incidents Tailing Row */}
+      <div className="dashboard-charts-section" style={{ gridTemplateColumns: '1fr', marginTop: '1rem' }}>
         <div className="glass-panel">
           <div className="panel-header">
             <h3 className="panel-title">Critical System Incidents</h3>
           </div>
           <div className="panel-body">
-            <div className="alert-feed-list">
+            <div className="alert-feed-list" style={{ maxHeight: '180px' }}>
               {data.recentAlerts.map(alert => (
                 <div key={alert.id} className={`alert-feed-item ${alert.severity.toLowerCase()}`}>
                   <AlertTriangle 
                     size={18} 
-                    className={alert.severity === 'Critical' ? 'text-danger' : 'text-warning'} 
                     style={{ color: alert.severity === 'Critical' ? 'var(--accent-red)' : 'var(--accent-orange)' }} 
                   />
                   <div className="alert-content-box">
@@ -214,11 +256,6 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
-              {data.recentAlerts.length === 0 && (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                  All systems healthy. No active alerts.
-                </div>
-              )}
             </div>
           </div>
         </div>
