@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aquaguard-config
+  namespace: default
+data:
+  database_name: "aquaguard"
+  database_user: "postgres"
+  api_port: "5001"
+  node_env: "production"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: default
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+      - job_name: 'aquaguard-backend'
+        static_configs:
+          - targets: ['aquaguard-backend-service:5001']

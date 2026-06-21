@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aquaguard-db
+  namespace: default
+  labels:
+    app: aquaguard-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aquaguard-db
+  template:
+    metadata:
+      labels:
+        app: aquaguard-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: aquaguard-config
+              key: database_user
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: aquaguard-config
+              key: database_name
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: aquaguard-secret
+              key: database_password
+        volumeMounts:
+        - name: db-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: db-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aquaguard-db-service
+  namespace: default
+spec:
+  selector:
+    app: aquaguard-db
+  ports:
+  - protocol: TCP
+    port: 5432
+    targetPort: 5432
+  type: ClusterIP

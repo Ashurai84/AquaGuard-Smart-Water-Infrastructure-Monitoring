@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aquaguard-prometheus
+  namespace: default
+  labels:
+    app: aquaguard-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aquaguard-prometheus
+  template:
+    metadata:
+      labels:
+        app: aquaguard-prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:latest
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: prometheus-config-volume
+          mountPath: /etc/prometheus/
+      volumes:
+      - name: prometheus-config-volume
+        configMap:
+          name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aquaguard-prometheus-service
+  namespace: default
+spec:
+  selector:
+    app: aquaguard-prometheus
+  ports:
+  - protocol: TCP
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP

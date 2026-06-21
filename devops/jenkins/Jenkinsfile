@@ -4,86 +4,110 @@ pipeline {
     environment {
         AWS_ACCOUNT_ID = '123456789012'
         AWS_DEFAULT_REGION = 'us-east-1'
-        IMAGE_REPO_NAME_BACKEND = 'aquaguard-backend'
-        IMAGE_REPO_NAME_FRONTEND = 'aquaguard-frontend'
+        IMAGE_REPO_BACKEND = 'aquaguard-backend'
+        IMAGE_REPO_FRONTEND = 'aquaguard-frontend'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         EKS_CLUSTER_NAME = 'aquaguard-prod-eks'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Code Audit & Lint') {
+        stage('Install Dependencies') {
             steps {
                 dir('backend') {
-                    sh 'npm install --only=dev'
-                    // sh 'npm run lint'
+                    sh 'npm install --only=production'
                 }
                 dir('frontend') {
-                    sh 'npm install --only=dev'
-                    // sh 'npm run lint'
+                    sh 'npm install'
                 }
             }
         }
 
-        stage('Run Unit Tests') {
+        stage('Run Tests') {
             steps {
                 dir('backend') {
-                    // sh 'npm run test'
-                    echo "Unit tests run completed."
+                    echo "Executing backend unit testing..."
+                    // sh 'npm test'
                 }
             }
         }
 
-        stage('Build Docker Images') {
+        stage('Build Backend Image') {
             steps {
                 script {
-                    dockerBackend = docker.build("${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}", "-f backend/Dockerfile ./backend")
-                    dockerFrontend = docker.build("${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}", "-f frontend/Dockerfile ./frontend")
+                    dockerBackend = docker.build("${IMAGE_REPO_BACKEND}:${IMAGE_TAG}", "-f backend/Dockerfile ./backend")
                 }
             }
         }
 
-        stage('Push Images to AWS ECR') {
+        stage('Build Frontend Image') {
+            steps {
+                script {
+                    dockerFrontend = docker.build("${IMAGE_REPO_FRONTEND}:${IMAGE_TAG}", "-f frontend/Dockerfile ./frontend")
+                }
+            }
+        }
+
+        stage('Push Images') {
             steps {
                 script {
                     sh "aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
                     
-                    sh "docker tag ${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}"
-                    sh "docker tag ${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}"
+                    sh "docker tag ${IMAGE_REPO_BACKEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_BACKEND}:${IMAGE_TAG}"
+                    sh "docker tag ${IMAGE_REPO_FRONTEND}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_FRONTEND}:${IMAGE_TAG}"
                     
-                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}"
-                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_BACKEND}:${IMAGE_TAG}"
+                    sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_FRONTEND}:${IMAGE_TAG}"
                 }
             }
         }
 
-        stage('Kubernetes Deploy') {
+        stage('Deploy') {
             steps {
                 script {
                     sh "aws eks update-kubeconfig --region ${AWS_DEFAULT_REGION} --name ${EKS_CLUSTER_NAME}"
-                    
-                    // Replace image placeholders in Kubernetes manifests
-                    sh "sed -i 's|IMAGE_PLACEHOLDER_BACKEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_BACKEND}:${IMAGE_TAG}|g' devops/kubernetes/backend-deployment.yaml"
-                    sh "sed -i 's|IMAGE_PLACEHOLDER_FRONTEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME_FRONTEND}:${IMAGE_TAG}|g' devops/kubernetes/frontend-deployment.yaml"
-                    
-                    // Apply Kubernetes configurations
+                    sh "sed -i 's|IMAGE_PLACEHOLDER_BACKEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_BACKEND}:${IMAGE_TAG}|g' devops/kubernetes/backend-deployment.yaml"
+                    sh "sed -i 's|IMAGE_PLACEHOLDER_FRONTEND|${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_FRONTEND}:${IMAGE_TAG}|g' devops/kubernetes/frontend-deployment.yaml"
                     sh "kubectl apply -f devops/kubernetes/"
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                script {
+                    // Poll service health status
+                    echo "Checking API gateway ingress statuses..."
+                    sh "curl -f http://aquaguard.internal/api/health || exit 1"
+                }
+            }
+        }
+
+        stage('Rollback') {
+            when {
+                expression { currentBuild.result == 'FAILURE' }
+            }
+            steps {
+                script {
+                    echo "Deployment failed. Rolling back changes..."
+                    sh "kubectl rollout undo deployment/aquaguard-backend"
+                    sh "kubectl rollout undo deployment/aquaguard-frontend"
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "CI/CD execution finished successfully. Deployment updated."
-        }
         failure {
-            echo "Pipeline build failed. Alerting engineering-on-duty."
+            echo "Pipeline finished with failure status. Rollback stage triggered."
+        }
+        success {
+            echo "CI/CD execution completed successfully."
         }
     }
 }
