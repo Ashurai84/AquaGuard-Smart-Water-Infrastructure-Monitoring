@@ -48,6 +48,35 @@ services:
       - backend
     restart: always
 
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: aquaguard_prometheus
+    volumes:
+      - ./devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aquaguard_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    volumes:
+      - ./devops/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./devops/grafana/dashboard_provider.yml:/etc/grafana/provisioning/dashboards/dashboard_provider.yml
+      - ./devops/grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
+    depends_on:
+      - prometheus
+    restart: always
+
 volumes:
   pgdata:
     driver: local
+

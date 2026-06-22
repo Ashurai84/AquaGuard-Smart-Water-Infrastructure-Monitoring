@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Login from './pages/Login';
+import ErrorBoundary from './components/ErrorBoundary';
+
 
 // Import All Page Panels
 import Dashboard from './pages/Dashboard';
